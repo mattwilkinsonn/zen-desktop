@@ -10,6 +10,15 @@ const { PromiseTestUtils } = ChromeUtils.importESModule(
 // Pinned-tab context menus hit a missing Fluent id in test builds; device_sync does the same.
 PromiseTestUtils.allowMatchingRejectionsGlobally(/menu-bookmark-tab/);
 
+const originalTabs = new Set(gZenWorkspaces.allStoredTabs);
+registerCleanupFunction(async () => {
+  for (const tab of gZenWorkspaces.allStoredTabs) {
+    if (!originalTabs.has(tab) && tab.isConnected) {
+      await BrowserTestUtils.removeTab(tab);
+    }
+  }
+});
+
 add_task(async function test_pin_before_load_uses_original_url() {
   const url = "https://example.com/unloaded-pin";
   const tab = BrowserTestUtils.addTab(gBrowser, "about:blank", {
@@ -161,6 +170,8 @@ add_task(async function test_essential_blank_pin_repairs_in_both_windows() {
     ok(!tab.hasAttribute("zen-pinned-changed"));
     ok(!mirror.hasAttribute("zen-pinned-changed"));
   } finally {
+    tab.removeAttribute("zen-essential");
+    mirror?.removeAttribute("zen-essential");
     await BrowserTestUtils.removeTab(tab);
     await BrowserTestUtils.closeWindow(win);
   }
