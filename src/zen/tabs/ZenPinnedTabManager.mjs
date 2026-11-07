@@ -84,9 +84,13 @@ class nsZenPinnedTabManager extends nsZenDOMOperatedFeature {
     if (gBrowser) {
       gBrowser.addTabsProgressListener(this);
     } else {
-      window.addEventListener("load", () => {
-        gBrowser.addTabsProgressListener(this);
-      }, { once: true });
+      window.addEventListener(
+        "load",
+        () => {
+          gBrowser.addTabsProgressListener(this);
+        },
+        { once: true }
+      );
     }
     gZenWorkspaces._resolvePinnedInitialized();
     gZenWorkspaces.promiseInitialized.then(async () => {
@@ -477,10 +481,7 @@ class nsZenPinnedTabManager extends nsZenDOMOperatedFeature {
     const state = this.#getTabState(tab);
 
     const initialState = tab._zenPinnedInitialState;
-    if (
-      !initialState?.entry?.url ||
-      initialState.entry.url === "about:blank"
-    ) {
+    if (!initialState?.entry?.url || initialState.entry.url === "about:blank") {
       return;
     }
 
