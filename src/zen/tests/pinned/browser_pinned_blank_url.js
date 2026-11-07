@@ -226,7 +226,8 @@ add_task(async function test_pending_restored_pin_reconciles_before_startup_rese
     const url = "https://example.com/pending-restored-pin";
     const state = SessionStore.getWindowState(win);
     state.windows[0].tabs = [
-      { entries: [{ url: "about:blank" }], index: 1 },
+      { entries: [{ url: "https://example.org/restore-selected" }], index: 1,
+        zenWorkspace: win.gZenWorkspaces.activeWorkspace },
       { entries: [{ url }], index: 1, pinned: true,
         zenSyncId: "zen-pending-blank-pin",
         zenWorkspace: win.gZenWorkspaces.activeWorkspace,
@@ -249,6 +250,8 @@ add_task(async function test_pending_restored_pin_reconciles_before_startup_rese
       "Startup reconciliation reads the pending restored history");
     Assert.equal(JSON.parse(SessionStore.getTabState(tab)).entries[0].url, url,
       "Startup reset preserves the real pending session entry");
+    win.gBrowser.insertBrowser(win.gBrowser.selectedTab);
+    win.gBrowser.insertBrowser(tab);
     const loaded = BrowserTestUtils.browserLoaded(tab.linkedBrowser, false, url);
     win.gBrowser.selectedTab = tab;
     await loaded;
