@@ -95,17 +95,28 @@ add_task(async function test_window_restore_folder_workspace_and_undo_close() {
         zenWorkspace: spaceB.uuid,
       })),
       {
-        entries: [{ url: "https://example.org/" }], index: 1,
-        pinned: true, zenEssential: true, zenWorkspace: spaceB.uuid,
+        entries: [{ url: "https://example.org/" }],
+        index: 1,
+        pinned: true,
+        zenEssential: true,
+        zenWorkspace: spaceB.uuid,
         zenSyncId: "zen-restore-essential",
       },
     ];
     data.selected = 1;
-    data.groups = [{ id: folderId, name: "Restored", color: "blue", pinned: true }];
-    data.folders = [{
-      id: folderId, name: "Restored", pinned: true, workspaceId: spaceA,
-      emptyTabIds: ["zen-restore-child-0"], collapsed: false,
-    }];
+    data.groups = [
+      { id: folderId, name: "Restored", color: "blue", pinned: true },
+    ];
+    data.folders = [
+      {
+        id: folderId,
+        name: "Restored",
+        pinned: true,
+        workspaceId: spaceA,
+        emptyTabIds: ["zen-restore-child-0"],
+        collapsed: false,
+      },
+    ];
     // Stale routing input must not defeat the folder override. Do not mutate
     // session data, which SessionStore also uses after creating the tabs.
     win.gZenWorkspaces.getSessionRestoreFragment = function (tabData) {
@@ -119,16 +130,20 @@ add_task(async function test_window_restore_folder_workspace_and_undo_close() {
     await ready;
     win.gZenWorkspaces.getSessionRestoreFragment = originalFragment;
     const folder = win.document.getElementById(folderId);
-    Assert.equal(folder.parentElement,
+    Assert.equal(
+      folder.parentElement,
       win.gZenWorkspaces.workspaceElement(spaceA).pinnedTabsContainer,
-      "Real SessionStore restore routes the folder by its saved workspace");
+      "Real SessionStore restore routes the folder by its saved workspace"
+    );
     for (const tab of folder.tabs) {
       Assert.equal(tab.getAttribute("zen-workspace-id"), spaceA);
     }
     const essential = win.document.getElementById("zen-restore-essential");
-    Assert.equal(essential.parentElement,
+    Assert.equal(
+      essential.parentElement,
       win.gZenWorkspaces.getEssentialsSection(essential),
-      "Essentials take precedence over workspace routing");
+      "Essentials take precedence over workspace routing"
+    );
     const saved = SessionStore.getWindowState(win).windows[0];
     for (const tab of saved.tabs.filter(tab => tab.groupId === folderId)) {
       Assert.equal(tab.zenWorkspace, spaceA, "The repaired workspace persists");
@@ -142,9 +157,11 @@ add_task(async function test_window_restore_folder_workspace_and_undo_close() {
     const restored = BrowserTestUtils.waitForEvent(win, "SSWindowStateReady");
     const reopened = SessionStore.undoCloseTabGroup(win, folderId, win);
     await restored;
-    Assert.equal(reopened.parentElement,
+    Assert.equal(
+      reopened.parentElement,
       win.gZenWorkspaces.workspaceElement(spaceB.uuid).pinnedTabsContainer,
-      "Undo-close uses the moved workspace, not the old restore map");
+      "Undo-close uses the moved workspace, not the old restore map"
+    );
     for (const tab of reopened.tabs) {
       Assert.equal(tab.getAttribute("zen-workspace-id"), spaceB.uuid);
     }
@@ -159,7 +176,9 @@ add_task(async function test_window_restore_folder_workspace_and_undo_close() {
 add_task(async function test_folder_restore_map_clears_after_insertion_error() {
   const originalSpace = gZenWorkspaces.activeWorkspace;
   const space = await gZenWorkspaces.createAndSaveWorkspace("Failed restore");
-  const container = gZenWorkspaces.workspaceElement(space.uuid).pinnedTabsContainer;
+  const container = gZenWorkspaces.workspaceElement(
+    space.uuid
+  ).pinnedTabsContainer;
   const originalInsert = container.insertBefore;
   const node = document.createXULElement("tab-group");
   try {
@@ -167,21 +186,35 @@ add_task(async function test_folder_restore_map_clears_after_insertion_error() {
       folders: [{ id: "failed-folder", workspaceId: space.uuid }],
     });
     gZenWorkspaces.beginSessionRestoreFragments();
-    gZenWorkspaces.getSessionRestoreFragment({
-      groupId: "failed-folder", pinned: true, zenWorkspace: originalSpace,
-    }).appendChild(node);
-    container.insertBefore = () => { throw new Error("restore insertion failed"); };
-    Assert.throws(() => gZenWorkspaces.flushSessionRestoreFragments(),
-      /restore insertion failed/);
+    gZenWorkspaces
+      .getSessionRestoreFragment({
+        groupId: "failed-folder",
+        pinned: true,
+        zenWorkspace: originalSpace,
+      })
+      .appendChild(node);
+    container.insertBefore = () => {
+      throw new Error("restore insertion failed");
+    };
+    Assert.throws(
+      () => gZenWorkspaces.flushSessionRestoreFragments(),
+      /restore insertion failed/
+    );
     container.insertBefore = originalInsert;
     gZenWorkspaces.beginSessionRestoreFragments();
-    gZenWorkspaces.getSessionRestoreFragment({
-      groupId: "failed-folder", pinned: true, zenWorkspace: originalSpace,
-    }).appendChild(node);
+    gZenWorkspaces
+      .getSessionRestoreFragment({
+        groupId: "failed-folder",
+        pinned: true,
+        zenWorkspace: originalSpace,
+      })
+      .appendChild(node);
     gZenWorkspaces.flushSessionRestoreFragments();
-    Assert.equal(node.parentElement,
+    Assert.equal(
+      node.parentElement,
       gZenWorkspaces.workspaceElement(originalSpace).pinnedTabsContainer,
-      "An insertion error cannot leak the previous restore's workspace map");
+      "An insertion error cannot leak the previous restore's workspace map"
+    );
   } finally {
     container.insertBefore = originalInsert;
     node.remove();
