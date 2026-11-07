@@ -564,22 +564,26 @@ class nsZenWorkspaces {
    * section instead of one move per restored tab.
    */
   flushSessionRestoreFragments() {
-    if (!this.#sessionRestoreFragments) {
-      return;
-    }
-    const filledSpaces = new Set();
-    for (const [container, fragment] of this.#sessionRestoreFragments) {
-      container.insertBefore(fragment, this.#sessionRestoreAnchor(container));
-      const spaceElement = container.closest("zen-workspace");
-      if (spaceElement) {
-        filledSpaces.add(spaceElement);
+    try {
+      if (!this.#sessionRestoreFragments) {
+        return;
       }
+      const filledSpaces = new Set();
+      for (const [container, fragment] of this.#sessionRestoreFragments) {
+        container.insertBefore(fragment, this.#sessionRestoreAnchor(container));
+        const spaceElement = container.closest("zen-workspace");
+        if (spaceElement) {
+          filledSpaces.add(spaceElement);
+        }
+      }
+      for (const spaceElement of filledSpaces) {
+        spaceElement.checkPinsExistence();
+      }
+      gBrowser.tabContainer._invalidateCachedTabs();
+    } finally {
+      this.#sessionRestoreFragments = null;
+      this.#sessionRestoreFolderWorkspaces.clear();
     }
-    this.#sessionRestoreFragments = null;
-    for (const spaceElement of filledSpaces) {
-      spaceElement.checkPinsExistence();
-    }
-    gBrowser.tabContainer._invalidateCachedTabs();
   }
 
   #sessionRestoreContainer(aTabData) {
@@ -865,6 +869,10 @@ class nsZenWorkspaces {
         .filter(folder => folder.workspaceId)
         .map(folder => [folder.id, folder.workspaceId])
     );
+    // Tab creation and fragment insertion are synchronous. Also discard this
+    // metadata if creation throws or fragment collection is unavailable.
+    const folderWorkspaces = this.#sessionRestoreFolderWorkspaces;
+    queueMicrotask(() => folderWorkspaces.clear());
     for (const tabData of aWinData.tabs || []) {
       const workspaceId = this.#sessionRestoreFolderWorkspaces.get(
         tabData.groupId
