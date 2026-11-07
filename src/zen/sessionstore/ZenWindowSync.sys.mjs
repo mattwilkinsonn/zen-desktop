@@ -1283,6 +1283,16 @@ class nsZenWindowSync {
       activeIndex = Math.min(activeIndex, entries.length - 1);
       activeIndex = Math.max(activeIndex, 0);
       let entryToUse = (entries[activeIndex] || entries[0]) ?? null;
+      if (!entryToUse?.url || entryToUse.url === "about:blank") {
+        const url = [
+          aTab.linkedBrowser?.currentURI?.spec,
+          aTab._originalUrl,
+          aTab._zenPinnedInitialState?.entry?.url,
+        ].find(candidate => candidate && candidate !== "about:blank");
+        if (url) {
+          entryToUse = { url, title: aTab.zenStaticLabel || aTab.label };
+        }
+      }
       this.setPinnedInitialState(
         aTab,
         { url: entryToUse?.url, title: entryToUse?.title },

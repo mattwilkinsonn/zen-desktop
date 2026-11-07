@@ -465,7 +465,10 @@ class nsZenPinnedTabManager extends nsZenDOMOperatedFeature {
     const state = this.#getTabState(tab);
 
     const initialState = tab._zenPinnedInitialState;
-    if (!initialState?.entry) {
+    if (
+      !initialState?.entry?.url ||
+      initialState.entry.url === "about:blank"
+    ) {
       return;
     }
 
@@ -962,12 +965,25 @@ class nsZenPinnedTabManager extends nsZenDOMOperatedFeature {
       return;
     }
     const tab = gBrowser.getTabForBrowser(aBrowser);
-    if (
-      !tab ||
-      !tab.pinned ||
-      tab.hasAttribute("zen-essential") ||
-      !tab._zenPinnedInitialState?.entry
-    ) {
+    if (!tab || !tab.pinned) {
+      return;
+    }
+    const initialUrl = tab._zenPinnedInitialState?.entry?.url;
+    if (!initialUrl || initialUrl === "about:blank") {
+      if (location === "about:blank") {
+        return;
+      }
+      // A pin created before its first load has no canonical URL yet. Use
+      // the committed location directly; the session history cache can lag.
+      window.gZenWindowSync.setPinnedInitialState(
+        tab,
+        { url: location, title: tab.zenStaticLabel || tab.label },
+        tab.getAttribute("image")
+      );
+      this.resetPinChangedUrl(tab);
+      return;
+    }
+    if (tab.hasAttribute("zen-essential")) {
       return;
     }
     // Remove # from the URL
