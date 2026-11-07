@@ -233,9 +233,9 @@ add_task(async function test_pending_restored_pin_reconciles_before_startup_rese
         zenWorkspace: win.gZenWorkspaces.activeWorkspace,
         _zenPinnedInitialState: { entry: { url: "about:blank" } } },
     ];
-    state.windows[0].selected = 1;
+    state.windows[0].selected = 0;
     const ready = BrowserTestUtils.waitForEvent(win, "SSWindowStateReady");
-    SessionStore.setWindowState(win, state, true);
+    SessionStore.setWindowState(win, state, false);
     await ready;
     const tab = win.document.getElementById("zen-pending-blank-pin");
     ok(tab.hasAttribute("pending"), "SessionStore creates a genuinely pending pin");
