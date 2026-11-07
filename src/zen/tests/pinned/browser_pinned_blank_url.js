@@ -134,3 +134,132 @@ add_task(async function test_reset_ignores_blank_saved_pin_url() {
     await BrowserTestUtils.removeTab(tab);
   }
 });
+
+add_task(async function test_essential_blank_pin_repairs_in_both_windows() {
+  const win = await BrowserTestUtils.openNewBrowserWindow();
+  await win.gZenWorkspaces.promiseInitialized;
+  const tab = await BrowserTestUtils.openNewForegroundTab(gBrowser, "about:blank");
+  let mirror;
+  try {
+    gBrowser.pinTab(tab);
+    await gZenWindowSync.setPinnedTabState(tab);
+    await TestUtils.waitForCondition(() => {
+      mirror = gZenWindowSync.getItemFromWindow(win, tab.id);
+      return !!mirror;
+    }, "The pinned tab has a second-window instance");
+    tab.setAttribute("zen-essential", "true");
+    mirror.setAttribute("zen-essential", "true");
+    tab._zenPinnedInitialState = { entry: { url: "about:blank" } };
+    mirror._zenPinnedInitialState = { entry: { url: "about:blank" } };
+    const url = "https://example.com/essential-first-load";
+    const loaded = BrowserTestUtils.browserLoaded(tab.linkedBrowser, false, url);
+    BrowserTestUtils.startLoadingURIString(tab.linkedBrowser, url);
+    await loaded;
+    Assert.equal(tab._zenPinnedInitialState.entry.url, url);
+    Assert.equal(mirror._zenPinnedInitialState.entry.url, url,
+      "Canonical URL repair propagates to the second window");
+    ok(!tab.hasAttribute("zen-pinned-changed"));
+    ok(!mirror.hasAttribute("zen-pinned-changed"));
+  } finally {
+    await BrowserTestUtils.removeTab(tab);
+    await BrowserTestUtils.closeWindow(win);
+  }
+});
+
+add_task(async function test_pin_commit_before_workspace_initialization() {
+  const tab = await BrowserTestUtils.openNewForegroundTab(gBrowser, "about:blank");
+  gBrowser.pinTab(tab);
+  await gZenWindowSync.setPinnedTabState(tab);
+  const originalPromise = gZenWorkspaces.promiseInitialized;
+  const originalResolve = gZenWorkspaces._resolvePinnedInitialized;
+  const initialized = Promise.withResolvers();
+  const manager = new gZenPinnedTabManager.constructor();
+  manager._initClosePinnedTabShortcut = () => {};
+  manager._insertItemsIntoTabContextMenu = () => {};
+  gZenWorkspaces.promiseInitialized = initialized.promise;
+  gZenWorkspaces._resolvePinnedInitialized = () => {};
+  // Only the newly initialized manager may observe this pre-initialization load.
+  gBrowser.removeTabsProgressListener(gZenPinnedTabManager);
+  try {
+    manager.init();
+    tab._zenPinnedInitialState = { entry: { url: "about:blank" } };
+    const url = "https://example.com/before-workspace-init";
+    const loaded = BrowserTestUtils.browserLoaded(tab.linkedBrowser, false, url);
+    BrowserTestUtils.startLoadingURIString(tab.linkedBrowser, url);
+    await loaded;
+    Assert.equal(tab._zenPinnedInitialState.entry.url, url,
+      "A commit before promiseInitialized resolves establishes the pin URL");
+    initialized.resolve();
+    await initialized.promise;
+    const next = "https://example.org/after-workspace-init";
+    const navigated = BrowserTestUtils.browserLoaded(tab.linkedBrowser, false, next);
+    BrowserTestUtils.startLoadingURIString(tab.linkedBrowser, next);
+    await navigated;
+    Assert.equal(tab._zenPinnedInitialState.entry.url, url,
+      "Later navigation cannot replace the pre-initialization reset target");
+  } finally {
+    initialized.resolve();
+    gZenWorkspaces.promiseInitialized = originalPromise;
+    gZenWorkspaces._resolvePinnedInitialized = originalResolve;
+    gBrowser.removeTabsProgressListener(manager);
+    gBrowser.addTabsProgressListener(gZenPinnedTabManager);
+    await BrowserTestUtils.removeTab(tab);
+  }
+});
+
+add_task(async function test_pending_restored_pin_reconciles_before_startup_reset() {
+  await SpecialPowers.pushPrefEnv({ set: [
+    ["zen.window-sync.enabled", false],
+    ["zen.pinned-tab-manager.restore-pinned-tabs-to-pinned-url", true],
+    ["browser.sessionstore.restore_on_demand", true],
+    ["browser.sessionstore.restore_pinned_tabs_on_demand", true],
+  ] });
+  const win = await BrowserTestUtils.openNewBrowserWindow();
+  await win.gZenWorkspaces.promiseInitialized;
+  const originalPromise = win.gZenWorkspaces.promiseInitialized;
+  const originalResolve = win.gZenWorkspaces._resolvePinnedInitialized;
+  const initialized = Promise.withResolvers();
+  const manager = new win.gZenPinnedTabManager.constructor();
+  manager._initClosePinnedTabShortcut = () => {};
+  manager._insertItemsIntoTabContextMenu = () => {};
+  try {
+    const url = "https://example.com/pending-restored-pin";
+    const state = SessionStore.getWindowState(win);
+    state.windows[0].tabs = [
+      { entries: [{ url: "about:blank" }], index: 1 },
+      { entries: [{ url }], index: 1, pinned: true,
+        zenSyncId: "zen-pending-blank-pin",
+        zenWorkspace: win.gZenWorkspaces.activeWorkspace,
+        _zenPinnedInitialState: { entry: { url: "about:blank" } } },
+    ];
+    state.windows[0].selected = 1;
+    const ready = BrowserTestUtils.waitForEvent(win, "SSWindowStateReady");
+    SessionStore.setWindowState(win, state, true);
+    await ready;
+    const tab = win.document.getElementById("zen-pending-blank-pin");
+    ok(tab.hasAttribute("pending"), "SessionStore creates a genuinely pending pin");
+    // Emulate legacy data surviving the TabPinned event, as on cold startup.
+    tab._zenPinnedInitialState = { entry: { url: "about:blank" } };
+    win.gZenWorkspaces.promiseInitialized = initialized.promise;
+    win.gZenWorkspaces._resolvePinnedInitialized = () => {};
+    manager.init();
+    initialized.resolve();
+    await TestUtils.waitForCondition(
+      () => tab._zenPinnedInitialState.entry.url === url,
+      "Startup reconciliation reads the pending restored history");
+    Assert.equal(JSON.parse(SessionStore.getTabState(tab)).entries[0].url, url,
+      "Startup reset preserves the real pending session entry");
+    const loaded = BrowserTestUtils.browserLoaded(tab.linkedBrowser, false, url);
+    win.gBrowser.selectedTab = tab;
+    await loaded;
+    Assert.equal(tab._zenPinnedInitialState.entry.url, url);
+    Assert.equal(tab.linkedBrowser.currentURI.spec, url);
+  } finally {
+    initialized.resolve();
+    win.gZenWorkspaces.promiseInitialized = originalPromise;
+    win.gZenWorkspaces._resolvePinnedInitialized = originalResolve;
+    win.gBrowser.removeTabsProgressListener(manager);
+    await BrowserTestUtils.closeWindow(win);
+    await SpecialPowers.popPrefEnv();
+  }
+});
