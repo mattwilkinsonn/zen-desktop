@@ -79,8 +79,9 @@ class nsZenPinnedTabManager extends nsZenDOMOperatedFeature {
 
     this._zenClickEventListener = this._onTabClick.bind(this);
 
-    // Observe commits while workspace initialization is still in flight.
-    gBrowser.addTabsProgressListener(this);
+    // DOMContentLoaded runs before gBrowser is constructed. Register after
+    // that synchronous startup work, but before workspace initialization.
+    queueMicrotask(() => gBrowser.addTabsProgressListener(this));
     gZenWorkspaces._resolvePinnedInitialized();
     gZenWorkspaces.promiseInitialized.then(async () => {
       for (const tab of gZenWorkspaces.allStoredTabs) {
