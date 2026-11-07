@@ -575,7 +575,7 @@ index 430e1137a15f0aa8c5f39fd76127f825b2751c69..311f8696f6e5dbe9e8641009adb0f2d0
          let { groupId } = tabData;
          const tabGroup = tabGroupWorkingData.get(groupId);
          // if a tab refers to a tab group we don't know, skip any group
-@@ -5219,9 +5424,19 @@ export class Tabbrowser {
+@@ -5219,9 +5424,20 @@ export class Tabbrowser {
                tabGroup.stateData.id,
                tabGroup.stateData.color,
                tabGroup.stateData.collapsed,
@@ -586,9 +586,10 @@ index 430e1137a15f0aa8c5f39fd76127f825b2751c69..311f8696f6e5dbe9e8641009adb0f2d0
 +              tabGroup.stateData.splitView,
              );
 -            tabsFragment.appendChild(tabGroup.node);
-+            // A group lives in the space of the tabs it holds, but its own
-+            // pinned and essential state is what decides its section.
++            // A folder's saved workspace takes precedence over its tabs;
++            // its own pinned and essential state decides its section.
 +            zenFragmentFor({
++              groupId: tabData.groupId,
 +              zenWorkspace: tabData.zenWorkspace,
 +              userContextId: tabData.userContextId,
 +              pinned: tabGroup.stateData.pinned ?? tabData.pinned,

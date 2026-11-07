@@ -530,6 +530,8 @@ class nsZenWorkspaces {
   /** @type {Map<Element, DocumentFragment>|null} */
   #sessionRestoreFragments = null;
 
+  #sessionRestoreFolderWorkspaces = new Map();
+
   get canCollectSessionRestoreFragments() {
     return (
       this._hasInitializedTabsStrip &&
@@ -584,7 +586,10 @@ class nsZenWorkspaces {
     if (aTabData.zenEssential) {
       return this.getEssentialsSection(aTabData.userContextId);
     }
-    let spaceElement = this.workspaceElement(aTabData.zenWorkspace);
+    const workspaceId =
+      this.#sessionRestoreFolderWorkspaces.get(aTabData.groupId) ||
+      aTabData.zenWorkspace;
+    let spaceElement = this.workspaceElement(workspaceId);
     if (!spaceElement?.tabsContainer) {
       // The space is gone, or the tab never had one. Keep it in the active
       // space, #clearAnyZombieTabs takes care of it later on if need be.
@@ -852,6 +857,22 @@ class nsZenWorkspaces {
   }
 
   restoreWorkspacesFromSessionStore(aWinData = {}) {
+    // A folder owns its tabs' space, including hidden placeholders saved by
+    // older versions with a stale workspace ID. Repair the session data before
+    // tab creation so the corrected ID is also persisted on the restored tabs.
+    this.#sessionRestoreFolderWorkspaces = new Map(
+      (aWinData.folders || [])
+        .filter(folder => folder.workspaceId)
+        .map(folder => [folder.id, folder.workspaceId])
+    );
+    for (const tabData of aWinData.tabs || []) {
+      const workspaceId = this.#sessionRestoreFolderWorkspaces.get(
+        tabData.groupId
+      );
+      if (workspaceId) {
+        tabData.zenWorkspace = workspaceId;
+      }
+    }
     if (this.#hasInitialized || !this.workspaceEnabled) {
       this._resolveInitialized?.();
       return Promise.resolve();
