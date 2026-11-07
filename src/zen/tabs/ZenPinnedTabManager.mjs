@@ -79,9 +79,15 @@ class nsZenPinnedTabManager extends nsZenDOMOperatedFeature {
 
     this._zenClickEventListener = this._onTabClick.bind(this);
 
-    // DOMContentLoaded runs before gBrowser is constructed. Register after
-    // that synchronous startup work, but before workspace initialization.
-    queueMicrotask(() => gBrowser.addTabsProgressListener(this));
+    // gBrowser is constructed by the window load handler. Listen before
+    // session content restoration, without waiting for workspace initialization.
+    if (gBrowser) {
+      gBrowser.addTabsProgressListener(this);
+    } else {
+      window.addEventListener("load", () => {
+        gBrowser.addTabsProgressListener(this);
+      }, { once: true });
+    }
     gZenWorkspaces._resolvePinnedInitialized();
     gZenWorkspaces.promiseInitialized.then(async () => {
       for (const tab of gZenWorkspaces.allStoredTabs) {
