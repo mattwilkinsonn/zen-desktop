@@ -79,6 +79,7 @@ add_task(async function test_window_restore_folder_workspace_and_undo_close() {
   const spaceB = await win.gZenWorkspaces.createAndSaveWorkspace("Restore B");
   const folderId = "zen-integration-restore-folder";
   const originalRestore = win.gZenSessionStore.restoreInitialTabData;
+  const originalFragment = win.gZenWorkspaces.getSessionRestoreFragment;
   try {
     const state = SessionStore.getWindowState(win);
     const data = state.windows[0];
@@ -105,18 +106,18 @@ add_task(async function test_window_restore_folder_workspace_and_undo_close() {
       id: folderId, name: "Restored", pinned: true, workspaceId: spaceA,
       emptyTabIds: ["zen-restore-child-0"], collapsed: false,
     }];
-    // Keep the routing input stale after tab attributes are repaired. This
-    // independently verifies that Tabbrowser passes the folder's groupId.
-    win.gZenSessionStore.restoreInitialTabData = function (tab, tabData) {
-      originalRestore.call(this, tab, tabData);
-      if (tabData.groupId === folderId) {
-        tabData.zenWorkspace = spaceB.uuid;
-      }
+    // Stale routing input must not defeat the folder override. Do not mutate
+    // session data, which SessionStore also uses after creating the tabs.
+    win.gZenWorkspaces.getSessionRestoreFragment = function (tabData) {
+      return originalFragment.call(this, {
+        ...tabData,
+        zenWorkspace: spaceB.uuid,
+      });
     };
     const ready = BrowserTestUtils.waitForEvent(win, "SSWindowStateReady");
     SessionStore.setWindowState(win, state, true);
     await ready;
-    win.gZenSessionStore.restoreInitialTabData = originalRestore;
+    win.gZenWorkspaces.getSessionRestoreFragment = originalFragment;
     const folder = win.document.getElementById(folderId);
     Assert.equal(folder.parentElement,
       win.gZenWorkspaces.workspaceElement(spaceA).pinnedTabsContainer,
@@ -136,7 +137,7 @@ add_task(async function test_window_restore_folder_workspace_and_undo_close() {
     win.gZenFolders.changeFolderToSpace(folder, spaceB.uuid);
     await win.gZenWorkspaces.changeWorkspaceWithID(spaceB.uuid);
     const removed = BrowserTestUtils.waitForEvent(folder, "TabGroupRemoved");
-    win.gBrowser.removeTabGroup(folder);
+    folder.delete();
     await removed;
     const restored = BrowserTestUtils.waitForEvent(win, "SSWindowStateReady");
     const reopened = SessionStore.undoCloseTabGroup(win, folderId, win);
@@ -149,6 +150,7 @@ add_task(async function test_window_restore_folder_workspace_and_undo_close() {
     }
   } finally {
     win.gZenSessionStore.restoreInitialTabData = originalRestore;
+    win.gZenWorkspaces.getSessionRestoreFragment = originalFragment;
     await BrowserTestUtils.closeWindow(win);
     await SpecialPowers.popPrefEnv();
   }
