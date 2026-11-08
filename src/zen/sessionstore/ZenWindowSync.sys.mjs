@@ -298,7 +298,8 @@ class nsZenWindowSync {
         if (!tab.id) {
           tab.id = this.#newTabSyncId;
         }
-        if (tab.pinned && !tab._zenPinnedInitialState) {
+        const initialUrl = tab._zenPinnedInitialState?.entry?.url;
+        if (tab.pinned && (!initialUrl || initialUrl === "about:blank")) {
           await this.setPinnedTabState(tab);
         }
         // Lets clear extra values to save some memory, we only really
@@ -1283,6 +1284,16 @@ class nsZenWindowSync {
       activeIndex = Math.min(activeIndex, entries.length - 1);
       activeIndex = Math.max(activeIndex, 0);
       let entryToUse = (entries[activeIndex] || entries[0]) ?? null;
+      if (!entryToUse?.url || entryToUse.url === "about:blank") {
+        const url = [
+          aTab.linkedBrowser?.currentURI?.spec,
+          aTab._originalUrl,
+          aTab._zenPinnedInitialState?.entry?.url,
+        ].find(candidate => candidate && candidate !== "about:blank");
+        if (url) {
+          entryToUse = { url, title: aTab.zenStaticLabel || aTab.label };
+        }
+      }
       this.setPinnedInitialState(
         aTab,
         { url: entryToUse?.url, title: entryToUse?.title },
@@ -1512,7 +1523,8 @@ class nsZenWindowSync {
     // wan't to override the initial state we stored when the tab was created.
     // For example, when session restore pins a tab again.
     let tabStatePromise;
-    if (!tab._zenPinnedInitialState) {
+    const initialUrl = tab._zenPinnedInitialState?.entry?.url;
+    if (!initialUrl || initialUrl === "about:blank") {
       tabStatePromise = this.setPinnedTabState(tab);
     }
     return Promise.all([
